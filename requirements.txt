@@ -1,0 +1,3 @@
+confluent-kafka
+types-confluent-kafka
+pyspark

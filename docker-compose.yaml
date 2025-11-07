@@ -1,0 +1,250 @@
+services:
+  kafka-controller-1:
+    image: confluentinc/cp-kafka:7.8.3
+    container_name: kafka-controller-1
+    environment:
+      CLUSTER_ID: 'kafka-cluster-1'
+      KAFKA_NODE_ID: 1
+
+      KAFKA_PROCESS_ROLES: controller
+
+      KAFKA_LISTENERS: CONTROLLER://0.0.0.0:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-controller-1:9093, 2@kafka-controller-2:9093, 3@kafka-controller-3:9093
+
+    networks:
+      - transacts-network
+
+    volumes:
+      - controller_1_storage:/var/lib/kafka/data
+
+  kafka-controller-2:
+    image: confluentinc/cp-kafka:7.8.3
+    container_name: kafka-controller-2
+    environment:
+      CLUSTER_ID: 'kafka-cluster-1'
+      KAFKA_NODE_ID: 2
+
+      KAFKA_PROCESS_ROLES: controller
+
+      KAFKA_LISTENERS: CONTROLLER://0.0.0.0:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-controller-1:9093, 2@kafka-controller-2:9093, 3@kafka-controller-3:9093
+
+    networks:
+      - transacts-network
+
+    volumes:
+      - controller_2_storage:/var/lib/kafka/data
+
+  kafka-controller-3:
+    image: confluentinc/cp-kafka:7.8.3
+    container_name: kafka-controller-3
+    environment:
+      CLUSTER_ID: 'kafka-cluster-1'
+      KAFKA_NODE_ID: 3
+
+      KAFKA_PROCESS_ROLES: controller
+
+      KAFKA_LISTENERS: CONTROLLER://0.0.0.0:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-controller-1:9093, 2@kafka-controller-2:9093, 3@kafka-controller-3:9093
+
+    networks:
+      - transacts-network
+
+    volumes:
+      - controller_3_storage:/var/lib/kafka/data
+
+
+  kafka-broker-1:
+    image: confluentinc/cp-kafka:7.8.3
+    container_name: kafka-broker-1
+    ports:
+      - "29092:9092" # so to connect to this container from my laptop, I have to use 29092
+    environment:
+      CLUSTER_ID: 'kafka-cluster-1'
+      KAFKA_NODE_ID: 4
+
+      KAFKA_PROCESS_ROLES: broker
+
+      KAFKA_LISTENERS: PLAINTEXT://:19092, PLAINTEXT_HOST://:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-broker-1:19092, PLAINTEXT_HOST://localhost:29092 # people inside the docker network will have to connect to this broker via PLAINTEXT://kafka-broker-1:19092, otherwise I think if connecting from my laptop we have to use localhost:29092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT, PLAINTEXT:PLAINTEXT, PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-controller-1:9093, 2@kafka-controller-2:9093, 3@kafka-controller-3:9093
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+    networks:
+      - transacts-network
+
+    volumes:
+      - broker_1_storage:/var/lib/kafka/data
+
+    depends_on:
+      - kafka-controller-1
+      - kafka-controller-2
+      - kafka-controller-3
+
+  kafka-broker-2:
+    image: confluentinc/cp-kafka:7.8.3
+    container_name: kafka-broker-2
+    ports:
+      - "39092:9092"
+    environment:
+      CLUSTER_ID: 'kafka-cluster-1'
+      KAFKA_NODE_ID: 5
+
+      KAFKA_PROCESS_ROLES: broker
+
+      KAFKA_LISTENERS: PLAINTEXT://:19092, PLAINTEXT_HOST://:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-broker-2:19092, PLAINTEXT_HOST://localhost:39092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT # apparently you can change this protocol name based on ur security requirements
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT, PLAINTEXT:PLAINTEXT, PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-controller-1:9093, 2@kafka-controller-2:9093, 3@kafka-controller-3:9093
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+    networks:
+      - transacts-network
+
+    volumes:
+      - broker_2_storage:/var/lib/kafka/data
+
+    depends_on:
+      - kafka-controller-1
+      - kafka-controller-2
+      - kafka-controller-3
+
+  kafka-broker-3:
+    image: confluentinc/cp-kafka:7.8.3
+    container_name: kafka-broker-3
+    ports:
+      - "49092:9092"
+    environment:
+      CLUSTER_ID: 'kafka-cluster-1'
+      KAFKA_NODE_ID: 6
+
+      KAFKA_PROCESS_ROLES: broker
+
+      KAFKA_LISTENERS: PLAINTEXT://:19092, PLAINTEXT_HOST://:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-broker-3:19092, PLAINTEXT_HOST://localhost:49092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT, PLAINTEXT:PLAINTEXT, PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-controller-1:9093, 2@kafka-controller-2:9093, 3@kafka-controller-3:9093
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+    networks:
+      - transacts-network
+
+    volumes:
+      - broker_3_storage:/var/lib/kafka/data
+
+    depends_on:
+      - kafka-controller-1
+      - kafka-controller-2
+      - kafka-controller-3
+
+
+  console:
+    image: docker.redpanda.com/redpandadata/console:v2.5.2
+    entrypoint: /bin/sh
+    command: |-
+      -c 'echo "$$CONSOLE_CONFIG_FILE" > /tmp/config.yml; /app/console'
+    ports:
+      - "8080:8080"
+    environment:
+      CONFIG_FILEPATH: /tmp/config.yml
+      CONSOLE_CONFIG_FILE: >
+        kafka:
+          brokers: ["kafka-broker-1:19092", "kafka-broker-2:19092", "kafka-broker-3:19092"]
+        redpanda:
+          adminApi:
+            enabled: false
+            urls: ["http://kafka_broker:9644"]
+        connect:
+          enabled: false
+          clusters:
+            - name: 'kafka-cluster-1'
+              url: http://connect:8083
+    networks:
+      - transacts-network
+
+  x-spark-common: &spark-common
+    image: spark:latest
+    environment:
+      - HOME=/tmp
+    volumes:
+      - ./spark-jobs:/opt/spark/work-dir
+      - ./mnt/checkpoints:/mnt/spark-checkpoints
+      - ./mnt/spark-state:/mnt/spark-state
+      - ./ivy-cache:/tmp/.ivy2
+    networks:
+      - transacts-network
+
+  spark-master:
+    <<: *spark-common
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+    ports:
+      - "9190:8080"
+      - "7077:7077"
+      - "4040:4040"
+      - "8081:8081"
+
+  spark-worker: &spark-worker-image
+    <<: *spark-common
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+    depends_on:
+      - spark-master
+    environment:
+      SPARK_MODE: worker
+      SPARK_WORKER_CORES: 2 # TODO: Experiment
+      SPARK_WORKER_MEMORY: 2g # TODO: Experiment
+      SPARK_MASTER_URL: spark://spark-master:7077
+
+  spark-worker-2:
+    <<: *spark-worker-image
+
+  spark-worker-3:
+    <<: *spark-worker-image
+
+  init-kafka:
+    image: confluentinc/cp-kafka:7.8.3
+    depends_on:
+      - kafka-broker-3
+      - kafka-broker-2
+      - kafka-broker-1
+    networks:
+      - transacts-network
+    volumes:
+      - ./kafka-init:/scripts
+    # command: "//bin/kafka-topics --create --topic financial_transactions --bootstrap-server kafka-broker-1:19092 --partitions 5 --replication-factor 3;"
+    command: /scripts/init.sh
+
+  init-spark:
+    <<: *spark-common
+    entrypoint: ["/bin/bash", "-c"]
+    command: "/opt/spark/work-dir/init.sh"
+    depends_on:
+      - init-kafka
+    ports:
+      - "4041:4040" # need to expose this from here for the Spark GUI to be accessible from my local machine
+
+  
+
+
+volumes:
+  controller_1_storage:
+  controller_2_storage:
+  controller_3_storage:
+  broker_1_storage:
+  broker_2_storage:
+  broker_3_storage:
+
+networks:
+  transacts-network:

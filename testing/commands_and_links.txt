@@ -1,0 +1,8 @@
+docker compose up
+docker exec -it kafkayu-spark-master-1 ../bin/spark-submit --master spark://spark-master:7077 --packages org.apache.spark:spark-sql-kafka-0-10_2.13:4.0.1 --conf spark.jars.ivy=/tmp/.ivy2 spark-consumer.py
+
+https://hub.docker.com/_/spark
+https://spark.apache.org/docs/latest/streaming/structured-streaming-kafka-integration.html#deploying
+https://ant.apache.org/ivy/history/latest-milestone/settings/caches/cache.html
+
+docker pull apache/superset:GHA-dev-19127212118
