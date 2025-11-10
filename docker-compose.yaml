@@ -235,7 +235,16 @@ services:
     ports:
       - "4041:4040" # need to expose this from here for the Spark GUI to be accessible from my local machine
 
-  
+  clickhouse:
+    image: clickhouse:latest
+    container_name: clickhouse
+    ports: # https://clickhouse.com/docs/guides/sre/network-ports https://hub.docker.com/_/clickhouse
+      - "8123:8123" # default HTTP port
+      # - "9000:9000" # 'Clickhouse TCP protocol. The normal python sdk uses HTTP, so we don't need this'
+    environment:
+      - CLICKHOUSE_DB=${CLICKHOUSE_DB}
+      - CLICKHOUSE_USER=${CLICKHOUSE_USER}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
 
 
 volumes:

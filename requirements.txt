@@ -1,3 +1,5 @@
 confluent-kafka
 types-confluent-kafka
 pyspark
+python-dotenv
+clickhouse-connect
