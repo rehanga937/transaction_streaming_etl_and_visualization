@@ -176,7 +176,7 @@ services:
       - transacts-network
 
   x-spark-common: &spark-common
-    image: spark:latest
+    image: spark:4.0.1-scala2.13-java21-python3-ubuntu
     environment:
       - HOME=/tmp
     volumes:
@@ -236,7 +236,7 @@ services:
       - "4041:4040" # need to expose this from here for the Spark GUI to be accessible from my local machine
 
   clickhouse:
-    image: clickhouse:latest
+    image: clickhouse:25.10.1.3832-jammy
     container_name: clickhouse
     ports: # https://clickhouse.com/docs/guides/sre/network-ports https://hub.docker.com/_/clickhouse
       - "8123:8123" # default HTTP port
