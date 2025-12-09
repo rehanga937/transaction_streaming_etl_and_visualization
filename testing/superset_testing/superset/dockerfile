@@ -1,0 +1,33 @@
+FROM apache/superset:5.0.0
+
+USER root
+
+RUN echo "SECRET_KEY = 'sQCrh6epFI6XnAWoe2Ih0cV/MBVZMnBlNgo57eF4pcuj2QW+PwL6wAn7'" > /app/superset_config.py
+
+# since we created the file with the root user, change owner to superset user so he can access it
+RUN chown superset /app/superset_config.py
+
+ENV SUPERSET_CONFIG_PATH=/app/superset_config.py
+
+USER superset
+
+# https://clickhouse.com/docs/integrations/superset
+# setup clickhouse drivers
+# this doesn't work as superset needs to be restarted as it's already running from the base image
+RUN pip install clickhouse-connect
+
+# Run DB migrations
+RUN superset db upgrade
+
+# Initialize roles + permissions
+RUN superset init
+
+
+RUN superset fab create-admin \
+--username "duck" \
+--password "niceduck" \
+--firstname "duck" \
+--lastname "surduck" \
+--email "duck@duckmail.com"
+
+CMD ["/app/docker/entrypoints/run-server.sh"]
