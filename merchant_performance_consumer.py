@@ -27,7 +27,13 @@ consumer.subscribe([config.AGGREGATES_TOPIC])
 print(f"\033[92mMerchant performance consumer subscribed to {config.AGGREGATES_TOPIC} topic.\033[00m")
 
 # setup database
-client = clickhouse_connect.get_client(host='localhost', port=os.getenv('CLICKHOUSE_PORT'), username=os.getenv('CLICKHOUSE_USER'), password=os.getenv('CLICKHOUSE_PASSWORD'))
+client = clickhouse_connect.get_client(
+    host='localhost', 
+    port=os.getenv('CLICKHOUSE_PORT'), 
+    username=os.getenv('CLICKHOUSE_USER'), 
+    password=os.getenv('CLICKHOUSE_PASSWORD'), 
+    database=os.getenv('CLICKHOUSE_DB')
+)
 
 try: 
     client.command(
