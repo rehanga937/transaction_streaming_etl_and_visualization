@@ -1,6 +1,8 @@
 # Intro
 This directory contains a project to demo **streaming ETL and visualization of synthesized transactions**.
 
+Here we are simulating a financial institution that has to deal with many incoming transactions per second.
+
 1. A python script is used to generate synthetic transactions and send them all to a Kafka topic.
 2. A spark streaming job is used to perform transformations on the transaction events. 
     - Aggregate performance per merchant (total amount and transaction count) within a time slot.
@@ -129,6 +131,24 @@ This creates a good spread of transactions. Most transactions tend towards the l
 > [!NOTE]
 > For the purpose of this demo, the transactions with very high amounts will be flagged, with the intention of simulating how real banks would manually review such transactions.
 
+Running this simulation on my laptop yielded upwards of 20,000 transactions per second (~10 MB of data per minute without counting replication and partitioning within the Kafka cluster).
+An example transaction:
+```json
+{
+    "transactionId":"79452541-2e51-491e-890b-a0292e4a95dc",
+    "userId":"user_87",
+    "amount":7.68,
+    "transactionTime":1765963861,
+    "merchantId":"merchant_3",
+    "transactionType":"refund",
+    "location":"location_32",
+    "paymentMethod":"bank_transfer",
+    "isInternational":true,
+    "currency":"USD"
+}
+```
+
+
 ## ClickHouse
 I'm using ClickHouse for the analytical database. ClickHouse is column-oriented by default, which will speed up analytical queries (https://clickhouse.com/docs/development/architecture).
 
@@ -164,3 +184,16 @@ ORDER BY (timestamp);
 
 > [!NOTE]
 > `DateTime` type was used for the timestamp instead of `DateTime64`. The precision of `DateTime` is enough for this use case (1 second precision) and it only takes up 4 bytes as opposed to the other's 8 bytes (https://clickhouse.com/docs/use-cases/time-series/date-time-data-types).
+
+## Kakfa Cluster and Topic Setup
+The `docker-compose.yaml` file is setup to create 3 Kafka controllers and 3 Kafka brokers, as well as a console - the Redpanda console which provides a web GUI for the Kafka cluster.
+
+When the 3 brokers are created, a bash script will configure our kafka topics and some other policies (`kafka-init/init.sh`) (see `init-kafka` service in `docker-compose.yaml`).
+
+As seen in the `kafka-init/init.sh` file, the 3 topics we need are created: 
+- financial_transactions - raw transactions that are generated are held here
+- transaction_aggregates - holds messages containing the performance of each merchant within a spark micro-batch time period (amount and number of transactions)
+- transaction_anomalies - hold transactions identified by the spark streaming job, as been anomalous / need manual review by the bank (very high amount)
+The replication factor of each topic is set to 3, for redundancy, so each of our brokers will hold the data. 'financial_transactions' topic partition count is set to 5, while the rest are set to 1 for the purpose of this demo. (The transaction_aggregates and transaction_anomalies topics will each have 1 consumer pythons script consuming from it, so 1 partition is fine).
+
+In Kafka clusters, we may want to delete old data due to storage constraints. When running this demo on my laptop, the 'financial_transactions' topic would accumualate a few gigabytes (it's easily the biggest topic by a huge margin). In the `kafka-init/init.sh` file, a delete policy is created for the 'financial_transactions' topic. Old data is deleted after reaching a few GBs (refer the comments in `kafka-init/init.sh` for the calculation).
