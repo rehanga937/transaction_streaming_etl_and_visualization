@@ -87,7 +87,7 @@ For a fresh start:
 - delete the `mnt/` folder from the project directory
 
 > [!TIP]
-> Clean shutdowns by exiting the producer and consumer python programs, and stopping the container group as described above in the [Shutting Down](##shutting-down) section will negate the need to create a fresh start.
+> Clean shutdowns by exiting the producer and consumer python programs, and stopping the container group as described above in the [Shutting Down](#shutting-down) section will negate the need to create a fresh start.
 
 # How the Stuff Works / Technical Details
 
