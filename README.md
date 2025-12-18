@@ -1,5 +1,21 @@
+# Table of Contents
+- [Intro](#intro)
+- [Setup](#setup)
+- [Usage](#usage)
+    - [Get the stuff running](#get-the-stuff-running)
+    - [Shutting Down](#shutting-down)
+    - [For a fresh start](#for-a-fresh-start)
+- [How the Stuff Works / Technical Details](#how-the-stuff-works--technical-details)
+    - [Synthesizing Transactions](#synthesizing-transactions)
+    - [Kakfa Cluster and Topic Setup](#kakfa-cluster-and-topic-setup)
+    - [Spark Cluster and Streaming Job](#spark-cluster-and-streaming-job)
+    - [Consumer Scripts](#consumer-scripts)
+    - [ClickHouse](#clickhouse)
+- [Visualizing using Superset](#visualizing-using-superset)
+    - [Connection](#connection)
+
 # Intro
-This directory contains a project to demo **streaming ETL and visualization of synthesized transactions**.
+This directory contains a project to demo **streaming ETL and visualization of synthesized transactions**. This project was adapted and extended from a great tutorial (https://youtu.be/d6AFh31fO7Y?si=en-dJ21Ud4Mmwzcx) by [CodeWithYu](https://www.youtube.com/@CodeWithYu).
 
 Here we are simulating a financial institution that has to deal with many incoming transactions per second.
 
@@ -33,7 +49,7 @@ Here we are simulating a financial institution that has to deal with many incomi
     - CLICKHOUSE_PORT - should be 8123
     - CLICKHOUSE_USER - username to be created for clickhouse
     - CLICKHOUSE_PASSWORD - - password to be created for clickhouse
-1. Have Superset ready with clickhouse drivers installed.
+4. Have Superset ready with clickhouse drivers installed.
     This project was done in a Windows environment. Since Superset doesn't support Windows, it was run from a docker image.
     
     **What was done for Windows:**
@@ -53,6 +69,8 @@ Here we are simulating a financial institution that has to deal with many incomi
         docker compose -f docker-compose-image-tag.yml up
         ```
         The default credentials can be used (admin for both username and password)
+    > [!WARNING]
+    > Creating superset like this from the source code can take a long time. At the start, messages on the terminal will be from superset_init and superset_db. When you see messages from superset_worker and superset_app, superset will be close to launching.
         
 # Usage
 ## Get the stuff running
@@ -131,7 +149,7 @@ This creates a good spread of transactions. Most transactions tend towards the l
 > [!NOTE]
 > For the purpose of this demo, the transactions with very high amounts will be flagged, with the intention of simulating how real banks would manually review such transactions.
 
-Running this simulation on my laptop yielded upwards of 20,000 transactions per second (~10 MB of data per minute without counting replication and partitioning within the Kafka cluster).
+Running this simulation on my laptop yielded upwards of 20,000 transactions per second (72 million transactions per hour) (~10 MB of data per minute without counting replication and partitioning within the Kafka cluster). Since this demo is setup to run on personal computers, the production rate will depend greatly on the hardware and its usage.
 An example transaction:
 ```json
 {
@@ -148,9 +166,82 @@ An example transaction:
 }
 ```
 
+The `transaction_producer.py` file writes the synthesized transactions to the Kafka topic.
+![producer_terminal.png](readme_images/producer_terminal.png)
+
+
+## Kakfa Cluster and Topic Setup
+The `docker-compose.yaml` file is setup to create 3 Kafka controllers and 3 Kafka brokers, as well as a console - the Redpanda console which provides a web GUI for the Kafka cluster.
+
+When the 3 brokers are created, a bash script will configure our kafka topics and some other policies (`kafka-init/init.sh`) (see `init-kafka` service in `docker-compose.yaml`).
+
+As seen in the `kafka-init/init.sh` file, the 3 topics we need are created: 
+- **financial_transactions** - raw transactions that are generated are held here
+- **transaction_aggregates** - holds messages containing the performance of each merchant within a spark micro-batch time period (amount and number of transactions)
+- **transaction_anomalies** - hold transactions identified by the spark streaming job, as been anomalous / need manual review by the bank (very high amount)
+The replication factor of each topic is set to 3, for redundancy, so each of our brokers will hold the data. 'financial_transactions' topic partition count is set to 5, while the rest are set to 1 for the purpose of this demo. (The `transaction_aggregates` and `transaction_anomalies` topics will each have 1 consumer pythons script consuming from it, so 1 partition is fine).
+
+In Kafka clusters, we may want to delete old data due to storage constraints. When running this demo on my laptop, the 'financial_transactions' topic would accumualate a few gigabytes (it's easily the biggest topic by a huge margin). In the `kafka-init/init.sh` file, a delete policy is created for the 'financial_transactions' topic. Old data is deleted after reaching a few GBs (refer the comments in `kafka-init/init.sh` for the calculation).
+
+> [!NOTE]
+> Redpanda console can be accesssed at http://localhost:8080
+
+The Redpanda console can be used to view the topics and other Kafka related stuff. Below are screenshots of the overview and topic sections.
+
+![redpanda_overview.png](readme_images/redpanda/redpanda_overview.png)
+![redpanda_topics.png](readme_images/redpanda/redpanda_topics.png)
+![redpanda_single_topic.png](readme_images/redpanda/redpanda_single_topic.png)
+
+
+
+## Spark Cluster and Streaming Job
+
+The `docker-compose.yaml` file is setup to create a single spark master and 3 spark workers. The `spark-jobs/` folder is mounted to all spark containers, and contains the python script defining the 2 spark streaming jobs (`spark-jobs/spark_jobs.py`).  The `init-spark` service in the `docker-compose.yaml` file runs the `spark-jobs/init.sh` shell script and exits. The script submits the aforementioned spark job to the spark master when at least one kafka broker is ready.
+
+The `spark-jobs/init.sh` shell script also specifies the java packages that must be installed and used by the spark processes. The package installation location is mapped in the `docker-compose.yaml` file to point to the `ivy-cache` folder in this project directory. This way, once the packages are installed, they don't need to be re-installed in subsequent runs.
+
+There are 2 spark streaming jobs (queries):
+- **Merchant Performance Aggregator** - Accumulates the performance per merchant using all the transaction records found in one micro-batch. This data is sent as a message to the `transaction_aggregates` topic. An example message is given below (this message would be timestamped in the topic).
+    ```json
+    {
+        "merchantId":"merchant_1",
+        "totalAmount":309567.2600000002,
+        "transactionCount":8551
+    }
+    ```
+    
+- **Anomaly Finder** - Flags very high value transactions from the `financial_transactions` topic and sends them to the `transaction_anomalies` topic as is.
+
+> [!NOTE]
+> The spark GUI can be accessed at http://localhost:4041
+
+![active_spark_streaming_queries.png](readme_images/spark/active_spark_streaming_queries.png)
+
+The spark cluster can keep up with the rate of transactions been written to the Kafka topic. We can see that each micro-batch processes around 20,000 messages.
+
+![spark_streaming_query_statistics.png](readme_images/spark/spark_streaming_query_statistics.png)
+![spark_jobs_dashboard.png](readme_images/spark/spark_jobs_dashboard.png)
+
+## Consumer Scripts
+The 2 consumer scripts (`anomaly_consumer.py` and `merchant_performance_consumer.py`) are responsible for reading the messages in the `transaction_aggregates` and `transaction_anomalies` topics, and writing them to the ClickHouse DB. 
+
+Below is a screenshot of the consumer groups section from the Redpanda console for the Kafka cluster.
+![redpanda_consumer_groups.png](readme_images/redpanda/redpanda_consumer_groups.png)
+
+To recap, these 2 topics contain the processed outputs from the 2 spark streaming jobs.
+
+The read messages are written to 2 tables in ClickHouse.
+![anomaly_consumer_clean_shutdown.png](readme_images/anomaly_consumer_clean_shutdown.png)
+
+![merchant_perf_table.png](readme_images/clickhouse/merchant_perf_table.png)
+
+![anomaly_table.png](readme_images/clickhouse/anomaly_table.png)
 
 ## ClickHouse
 I'm using ClickHouse for the analytical database. ClickHouse is column-oriented by default, which will speed up analytical queries (https://clickhouse.com/docs/development/architecture).
+
+> [!NOTE]
+> The ClickHouse web-GUI can be accessed at http://localhost:8123
 
 2 tables will be used:
 - **merchant_perf** - shows performance per merchant within processed time slots
@@ -185,15 +276,16 @@ ORDER BY (timestamp);
 > [!NOTE]
 > `DateTime` type was used for the timestamp instead of `DateTime64`. The precision of `DateTime` is enough for this use case (1 second precision) and it only takes up 4 bytes as opposed to the other's 8 bytes (https://clickhouse.com/docs/use-cases/time-series/date-time-data-types).
 
-## Kakfa Cluster and Topic Setup
-The `docker-compose.yaml` file is setup to create 3 Kafka controllers and 3 Kafka brokers, as well as a console - the Redpanda console which provides a web GUI for the Kafka cluster.
+# Visualizing using Superset
+## Connection
+> [!NOTE]
+> With the Windows setup described in the [Setup](#setup) section, Superset can be accessed at http://localhost:8088
 
-When the 3 brokers are created, a bash script will configure our kafka topics and some other policies (`kafka-init/init.sh`) (see `init-kafka` service in `docker-compose.yaml`).
+To use Superset, we must connect it to our ClickHouse database. The python package 'clickhouse-connect>=0.6.8' is needed for the necessary drivers. For Windows, this was covered in the [Setup](#setup) section where the docker image was built from Superset's repo. 
 
-As seen in the `kafka-init/init.sh` file, the 3 topics we need are created: 
-- financial_transactions - raw transactions that are generated are held here
-- transaction_aggregates - holds messages containing the performance of each merchant within a spark micro-batch time period (amount and number of transactions)
-- transaction_anomalies - hold transactions identified by the spark streaming job, as been anomalous / need manual review by the bank (very high amount)
-The replication factor of each topic is set to 3, for redundancy, so each of our brokers will hold the data. 'financial_transactions' topic partition count is set to 5, while the rest are set to 1 for the purpose of this demo. (The transaction_aggregates and transaction_anomalies topics will each have 1 consumer pythons script consuming from it, so 1 partition is fine).
+If using Superset on windows using the above method (docker container in development mode), db host address must be `host.docker.internal:8123`.
 
-In Kafka clusters, we may want to delete old data due to storage constraints. When running this demo on my laptop, the 'financial_transactions' topic would accumualate a few gigabytes (it's easily the biggest topic by a huge margin). In the `kafka-init/init.sh` file, a delete policy is created for the 'financial_transactions' topic. Old data is deleted after reaching a few GBs (refer the comments in `kafka-init/init.sh` for the calculation).
+Afterwards the Superset GUI can be used to configure the connection to the database (https://clickhouse.com/docs/integrations/superset).
+
+> [!WARNING]
+> For some reason it can take more than one try of clicking the 'connect' button in Superset to connect to the ClickHouse database. 
