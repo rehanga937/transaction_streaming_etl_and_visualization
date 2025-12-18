@@ -13,6 +13,7 @@
     - [ClickHouse](#clickhouse)
 - [Visualizing using Superset](#visualizing-using-superset)
     - [Connection](#connection)
+    - [Visualization](#visualization)
 
 # Intro
 This directory contains a project to demo **streaming ETL and visualization of synthesized transactions**. This project was adapted and extended from a great tutorial (https://youtu.be/d6AFh31fO7Y?si=en-dJ21Ud4Mmwzcx) by [CodeWithYu](https://www.youtube.com/@CodeWithYu).
@@ -289,3 +290,11 @@ Afterwards the Superset GUI can be used to configure the connection to the datab
 
 > [!WARNING]
 > For some reason it can take more than one try of clicking the 'connect' button in Superset to connect to the ClickHouse database. 
+
+## Visualization
+Once connected, superset can be used to generate charts and dashboards. 
+
+For the purpose of this demo, I induced a bias in the synthesized transactions - merchant_1 will have a lower mean amount per transaction. I then generated a chart to visualize each merchant's processed amount (USD) with a minute's granularity.
+
+![Accumulated_Tx_Amounts_by_Merchant.png](readme_images/superset/accumulated_tx_amounts_by_merchant.png)
+Here we can see that merchant_1 consistently processes less amounts of money compared to the other 2 merchants. We can also see how the amount volume varies in time (in this case because it's a simulation, this would reflect the periods my computer was busy or not running `transaction_producer.py`).
