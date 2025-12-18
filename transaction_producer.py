@@ -17,20 +17,27 @@ def produce_event(producer: Producer, event: dict):
         # callback=delivery_report # not using a callback to speed things up
     )
 
-def generate_transaction() -> dict:
+def generate_transaction(bias_for_visualization = False) -> dict:
     """Return a randomly generated transaction.
+
+    Args:
+        bias_for_visualization (bool): Whether to incorporate a bias into merchant_1 for the purpose of visualization. Defaults to False
 
     Returns:
         dict: A transaction.
     """
-    amount = generate_amount.log_normal_amount()
+    merchant_id = random.choice(['merchant_1','merchant_2','merchant_3'])
+
+    if bias_for_visualization and merchant_id == 'merchant_1':
+        amount = generate_amount.log_normal_amount(mean=20)
+    else: amount = generate_amount.log_normal_amount()
 
     return {
         "transactionId": str(uuid.uuid4()),
         "userId" : f"user_{random.randint(1, 100)}",
         "amount": round(amount, 2),
         "transactionTime": int(time.time()),
-        "merchantId": random.choice(['merchant_1','merchant_2','merchant_3']),
+        "merchantId": merchant_id,
         "transactionType": random.choice(['purchase','refund']),
         "location": f"location_{random.randint(1, 50)}",
         "paymentMethod": random.choice(['credit_card', 'paypal', 'bank_transfer']),
@@ -62,7 +69,7 @@ def produce_infinite():
     while True: # if a BufferError is triggered, producer is flushed and the transaction is retried. (thanks to the while loop and manual incrementing of `i`)
         try:
             try: 
-                transaction = generate_transaction()
+                transaction = generate_transaction(bias_for_visualization=True)
                 if transaction['amount'] > 15000: 
                     outlier_count += 1
                     outlier_ids.append(transaction['transactionId'])
