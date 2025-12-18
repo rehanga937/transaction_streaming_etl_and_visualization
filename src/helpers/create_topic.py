@@ -4,6 +4,15 @@ from src import config
 
 
 def create_topic(topic_name: str, num_partitions: int, replication_factor: int):
+    """Create a topic in the Kafka cluster.
+
+    Prints result to terminal.
+
+    Args:
+        topic_name (str): _description_
+        num_partitions (int): _description_
+        replication_factor (int): _description_
+    """
     admin_client = AdminClient({"bootstrap.servers": config.KAKFA_BROKERS_FOR_LOCAL_MACHINE})
 
     metadata = admin_client.list_topics()
